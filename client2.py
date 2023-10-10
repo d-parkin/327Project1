@@ -19,9 +19,7 @@ request = struct.pack("4sl", socket.inet_aton(group), socket.INADDR_ANY)
 client_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, request)
 
 while True:
+#   # to send data with UDP
+#   # recvfrom returns data and address
+#   # message should be 4096 bytes
     print(client_sock.recv(4096))
-# client_sock.sendto(message.encode("utf-8"),('127.0.0.1', 12345))
-# data, address = client_sock.recvfrom(4096)
-# print("Server Says")
-# print(str(data))
-# client_sock.close()
