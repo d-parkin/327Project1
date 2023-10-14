@@ -1,11 +1,14 @@
 package javaFiles;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 /**
@@ -13,11 +16,15 @@ import java.util.List;
  */
 public class MasterNode {
 
-    private static long broadcastStart;
-    private static long multicastStart;
+    private static long broadcastStart; // the time at which the last broadcast started
+    private static long multicastStart; // the time at which the last multicast started
+    private static File file = new File("Log.csv"); // the csv file th logs are being written to
+    private static FileWriter fr; // used to write to files in java
+    private static ReentrantLock lock = new ReentrantLock(); // used to make sure resource aren't accessed by two threads at a time
 
     public static void main(String[] args) {
 
+        writeToCSV("Type; Time(ns); Source_IP; Source_Port; Destination_IP; Destination_Port; Protocol\n");
         // Starting to separate threads to run the broadcasting and multicasting parallel
         Thread broadcast = new Broadcast();
         Thread multicast = new Multicast();
@@ -27,6 +34,7 @@ public class MasterNode {
         broadcastLog.start();
         multicast.start();
         multicastLog.start();
+
     }
 
     // nested class to perform the Threading without the need of 3 files
@@ -122,18 +130,17 @@ public class MasterNode {
                     //System.out.printf("Received the following message: \"%s\" from: %s %n", msg, receivePacket.getAddress());
                     if (timestamps.size()<3) { // because we have 4 nodes next to the master
                         timestamps.add(Long.valueOf(infos[0]));
-                        //System.out.println("received an answer from: " + receivePacket.getAddress() + "::" + receivePacket.getPort());
                     } else {
                     timestamps.add(Long.valueOf(infos[0]));
                         latestTS = timestamps.get(0);
-                        for (Long t: timestamps){
+                        for (Long t: timestamps){ // getting the latest timestamp to get the time it took the broadcast to reach everyone
                             if (latestTS- t < 0L){
                                 latestTS = t;
                             }
                         }
-
                     long spendTime = Long.valueOf(infos[0])-broadcastStart;
-                    System.out.printf("Broadcast took: %d ns, was send from %s::%s, send to 255.255.255.255::3000 and used UDP %n", spendTime, infos[1],infos[2]);
+                    String data = "Broadcast;" + spendTime+ ";" + infos[1] + ";" + infos[2] + ";255.255.255.255;3000;UDP\n";
+                    writeToCSV(data);
                     timestamps.clear();
                     //}
                 }
@@ -169,10 +176,8 @@ public class MasterNode {
                     receiveReturnMessages.receive(receivePacket); //blocks until a packet is received
                     String msg = new String(receivePacket.getData(), 0, receivePacket.getLength()); //building an easy string message
                     String[] infos = msg.split(",");
-                    //System.out.printf("Received the following message: \"%s\" from: %s %n", msg, receivePacket.getAddress());
-                    if (timestamps.size()<3) { // because we have 4 nodes next to the master
+                    if (timestamps.size()<1) { // because we have 2 multicast nodes next to the master
                         timestamps.add(Long.valueOf(infos[0]));
-                        //System.out.println("received an answer from: " + receivePacket.getAddress() + "::" + receivePacket.getPort());
                     } else {
                     timestamps.add(Long.valueOf(infos[0]));
                         latestTS = timestamps.get(0);
@@ -183,7 +188,8 @@ public class MasterNode {
                         }
 
                     long spendTime = Long.valueOf(infos[0])-multicastStart;
-                    System.out.printf("Multicast took: %d ns, was send from %s::%s, send to 225.1.1.1::5000 and used UDP %n", spendTime, infos[1],infos[2]);
+                    String data = "Multicast;" + spendTime+ ";" + infos[1] + ";" + infos[2] + ";225.1.1.1;5000;UDP\n";
+                    writeToCSV(data);
                     timestamps.clear();
                     //}
                 }
@@ -198,6 +204,30 @@ public class MasterNode {
         public void run() {
             CalculateTimeMulticast();
         }
+    }
+
+    /**
+     * Writes data to a CSV file, ensuring thread safety with the use of a lock.
+     *
+     * @param data The data to be written to the CSV file.
+     */
+    private static void writeToCSV(String data){
+        lock.lock();
+        try {
+            fr = new FileWriter(file,true);
+            fr.write(data);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally{
+            //close resources
+            try {
+                fr.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            lock.unlock();
+        }
+
     }
 
 

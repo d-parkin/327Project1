@@ -8,7 +8,10 @@ import java.net.*;
 public class StandardNode {
     public static void main(String[] args) {
         Thread broadcastListener = new BroadcastListener();
+        Thread multicastListener = new MulticastListener();
         broadcastListener.start();
+        multicastListener.start();
+
     }
 
 
