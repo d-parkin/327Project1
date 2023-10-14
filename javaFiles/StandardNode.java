@@ -1,4 +1,4 @@
-package org.example;
+package javaFiles;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
