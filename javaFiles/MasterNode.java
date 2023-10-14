@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -12,31 +13,24 @@ import java.sql.Timestamp;
  */
 public class MasterNode {
 
-    private static Timestamp broadcastStart;
-    private static Timestamp multicastStart;
+    private static long broadcastStart;
+    private static long multicastStart;
+
     public static void main(String[] args) {
 
         // Starting to separate threads to run the broadcasting and multicasting parallel
         Thread broadcast = new Broadcast();
         Thread multicast = new Multicast();
+        Thread broadcastLog = new BroadcastLog();
+        Thread multicastLog = new MulticastLog();
         broadcast.start();
+        broadcastLog.start();
         multicast.start();
-    }
-
-    //New Thread to wait for incoming messages and calculate the time that the broadcast and multicast take
-    public void CalculateProceedingTime(){
-
+        multicastLog.start();
     }
 
     // nested class to perform the Threading without the need of 3 files
     static class Broadcast extends Thread {
-
-        @Override
-        public void run() {
-            broadcast("Hello (Broadcast)");
-        }
-
-
 
         /**
          * The broadcasting method that's sending the messages into the network every 5 seconds
@@ -53,9 +47,9 @@ public class MasterNode {
                 DatagramPacket packet
                         = new DatagramPacket(buffer, buffer.length, address, 3000); //preparing the datagram package
                 for (int i = 0; i < 20; i++) {
-                    multicastStart = new Timestamp(System.currentTimeMillis());
+                    broadcastStart = System.nanoTime(); // for calculating the time later
                     socket.send(packet); //sending the packet to the broadcast addresses
-                    Thread.sleep(5000L); // waiting 5 seconds after every broadcast
+                    Thread.sleep(5000L); // waiting until the broadcast before has been calculated
                 }
             } catch (IOException  e) {
                 System.out.println("Problems with the broadcast method and : " + e);
@@ -63,14 +57,16 @@ public class MasterNode {
                 System.out.println("The broadcast thread was interrupted during sleep(): " + e);
             }
         }
+
+        // The method that has to be implemented when you want to run something as a thread
+        @Override
+        public void run() {
+            broadcast("Hello (Broadcast)");
+        }
     }
 
     // nested class to perform the Threading without the need of 3 files
     static class Multicast extends Thread {
-        @Override
-        public void run() {
-            multicast("Are y'all awake? (Multicast)");
-        }
 
         /**
          * The multicast method sending messages to a specific group every 7 seconds
@@ -86,7 +82,8 @@ public class MasterNode {
 
                 DatagramPacket packet = new DatagramPacket(buf, buf.length, group, 5000); // Specifying the packet
                 for (int i = 0; i < 20; i++) {
-                    broadcastStart = new Timestamp(System.currentTimeMillis()); // getting the timestamp of the start
+                    multicastStart = System.nanoTime(); // getting the timestamp of the start
+                    //System.out.println("MulticastStart: " + multicastStart);
                     socket.send(packet); // sending the packet to members of the group
                     Thread.sleep(7000L); // waiting 7 seconds after every broadcast
                 }
@@ -96,5 +93,112 @@ public class MasterNode {
                 System.out.println("The multicast thread was interrupted during sleep(): " + e);
             }
         }
+        // The method that has to be implemented when you want to run something as a thread
+        @Override
+        public void run() {
+            multicast("Are y'all awake? (Multicast)");
+        }
     }
+
+    //  LOGGING, New Thread to wait for incoming broadcast responses and log relevant info
+    static class BroadcastLog extends Thread{
+
+        /**
+         * * LOGGING
+         * Listens to response messages from broadcast and extracts important details
+         */
+        public void CalculateTimeBroadcast(){
+            int port = 3333;
+            byte[] receiveDataBuffer = new byte[1024]; // expecting messages of max 1024 byte size
+            List<Long> timestamps = new ArrayList<>() ; // storing the 4 incoming responses to see which one is the latest
+            long latestTS;
+            try (DatagramSocket receiveReturnMessages = new DatagramSocket(port) ){
+                while (true) {
+                    DatagramPacket receivePacket = new DatagramPacket(receiveDataBuffer, receiveDataBuffer.length);// creating the datagram including the buffer to which the received data will be written
+
+                    receiveReturnMessages.receive(receivePacket); //blocks until a packet is received
+                    String msg = new String(receivePacket.getData(), 0, receivePacket.getLength()); //building an easy string message
+                    String[] infos = msg.split(",");
+                    //System.out.printf("Received the following message: \"%s\" from: %s %n", msg, receivePacket.getAddress());
+                    if (timestamps.size()<3) { // because we have 4 nodes next to the master
+                        timestamps.add(Long.valueOf(infos[0]));
+                        //System.out.println("received an answer from: " + receivePacket.getAddress() + "::" + receivePacket.getPort());
+                    } else {
+                    timestamps.add(Long.valueOf(infos[0]));
+                        latestTS = timestamps.get(0);
+                        for (Long t: timestamps){
+                            if (latestTS- t < 0L){
+                                latestTS = t;
+                            }
+                        }
+
+                    long spendTime = Long.valueOf(infos[0])-broadcastStart;
+                    System.out.printf("Broadcast took: %d ns, was send from %s::%s, send to 255.255.255.255::3000 and used UDP %n", spendTime, infos[1],infos[2]);
+                    timestamps.clear();
+                    //}
+                }
+
+            } catch (IOException e){
+                System.out.println("An problem with the socket or receiving the messages during broadcast log occurred: " + e);
+            }
+        }
+
+        // The method that has to be implemented when you want to run something as a thread
+        @Override
+        public void run() {
+            CalculateTimeBroadcast();
+        }
+    }
+
+    //LOGGING, New Thread to wait for incoming broadcast responses and log relevant info
+    static class MulticastLog extends Thread{
+
+        /**
+         * LOGGING
+         * Listens to response messages from multicast and extracts important details
+         */
+        public void CalculateTimeMulticast(){
+            int port = 5555;
+            byte[] receiveDataBuffer = new byte[1024]; // expecting messages of max 1024 byte size
+            List<Long> timestamps = new ArrayList<>() ; // storing the 4 incoming responses to see which one took the longest
+            long latestTS;
+            try (DatagramSocket receiveReturnMessages = new DatagramSocket(port) ){
+                while (true) {
+                    DatagramPacket receivePacket = new DatagramPacket(receiveDataBuffer, receiveDataBuffer.length);// creating the datagram including the buffer to which the received data will be written
+
+                    receiveReturnMessages.receive(receivePacket); //blocks until a packet is received
+                    String msg = new String(receivePacket.getData(), 0, receivePacket.getLength()); //building an easy string message
+                    String[] infos = msg.split(",");
+                    //System.out.printf("Received the following message: \"%s\" from: %s %n", msg, receivePacket.getAddress());
+                    if (timestamps.size()<3) { // because we have 4 nodes next to the master
+                        timestamps.add(Long.valueOf(infos[0]));
+                        //System.out.println("received an answer from: " + receivePacket.getAddress() + "::" + receivePacket.getPort());
+                    } else {
+                    timestamps.add(Long.valueOf(infos[0]));
+                        latestTS = timestamps.get(0);
+                        for (Long t: timestamps){
+                            if (latestTS- t < 0L){
+                                latestTS = t;
+                            }
+                        }
+
+                    long spendTime = Long.valueOf(infos[0])-multicastStart;
+                    System.out.printf("Multicast took: %d ns, was send from %s::%s, send to 225.1.1.1::5000 and used UDP %n", spendTime, infos[1],infos[2]);
+                    timestamps.clear();
+                    //}
+                }
+
+            } catch (IOException e){
+                System.out.println("An problem with the socket or receiving the messages during multicast log occurred: " + e);
+            }
+        }
+
+        // The method that has to be implemented when you want to run something as a thread
+        @Override
+        public void run() {
+            CalculateTimeMulticast();
+        }
+    }
+
+
 }
