@@ -1,0 +1,53 @@
+version: '3'
+
+services:
+  masternode:
+    build:
+      context: ./masternode   # Path to your Master Node code and Dockerfile
+    image: masternode-app
+    networks:
+      - my-network
+    # Additional configurations for the Master Node service
+
+  standardnode1:
+    build:
+      context: ./standardnode   # Path to your Standard Node code and Dockerfile
+    image: standardnode-app
+    networks:
+      - my-network
+    # Additional configurations for the Standard Node 1 service
+
+  standardnode2:
+    build:
+      context: ./standardnode   # Path to your Standard Node code and Dockerfile
+    image: standardnode-app
+    networks:
+      - my-network
+    # Additional configurations for the Standard Node 2 service
+
+  standardnode3:
+    build:
+      context: ./standardnode   # Path to your Standard Node code and Dockerfile
+    image: standardnode-app
+    networks:
+      - my-network
+    # Additional configurations for the Standard Node 3 service
+
+  standardnode4:
+    build:
+      context: ./standardnode   # Path to your Standard Node code and Dockerfile
+    image: standardnode-app
+    networks:
+      - my-network
+    # Additional configurations for the Standard Node 4 service
+
+  standardnode5:
+    build:
+      context: ./standardnode   # Path to your Standard Node code and Dockerfile
+    image: standardnode-app
+    networks:
+      - my-network
+    # Additional configurations for the Standard Node 5 service
+
+networks:
+  my-network:
